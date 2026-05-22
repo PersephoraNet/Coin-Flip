@@ -647,9 +647,11 @@
       </div>
     </div>
 
-    <div class="result-panel" id="resultPanel">
+    <div class="result-panel" id="resultPanel" style="min-height:90px;gap:0.4rem;">
       <span class="result-label">Awaiting flip</span>
       <span class="result-value idle" id="resultValue">—</span>
+      <span id="resultPhrase" style="font-family:'Courier New',monospace;font-size:0.62rem;letter-spacing:0.05em;color:#4a4870;word-break:break-all;max-width:100%;text-align:center;"></span>
+      <span id="resultTs" style="font-family:'Orbitron',sans-serif;font-size:0.42rem;letter-spacing:0.08em;color:#4a4870;"></span>
     </div>
 
     <div class="stats">
@@ -750,12 +752,17 @@
           result.textContent = 'HEADS';
           result.className = 'result-value heads';
           panel.className = 'result-panel heads-result';
+          document.getElementById('resultPhrase').style.color = 'rgba(0,255,156,0.75)';
         } else {
           tails++;
           result.textContent = 'TAILS';
           result.className = 'result-value tails';
           panel.className = 'result-panel tails-result';
+          document.getElementById('resultPhrase').style.color = 'rgba(61,90,254,0.75)';
         }
+
+        document.getElementById('resultPhrase').textContent = passphrase;
+        document.getElementById('resultTs').textContent = formatTimestamp(ts);
 
         headsEl.textContent = heads;
         tailsEl.textContent = tails;
@@ -796,6 +803,8 @@
       result.textContent = '—';
       result.className = 'result-value idle';
       panel.className = 'result-panel';
+      document.getElementById('resultPhrase').textContent = '';
+      document.getElementById('resultTs').textContent = '';
       coin.style.transform = '';
       history.innerHTML = '';
       flipLog.innerHTML = '<div class="flip-log-empty" id="logEmpty">No flips yet — awaiting input</div>';
