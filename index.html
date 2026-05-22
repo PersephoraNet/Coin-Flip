@@ -423,24 +423,134 @@
       border-color: var(--muted);
     }
 
-    /* History */
+    /* History dots */
     .history-row {
       display: flex;
       flex-wrap: wrap;
       gap: 0.4rem;
       justify-content: center;
-      min-height: 28px;
+      min-height: 20px;
       width: 100%;
     }
 
-    .history-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-    }
-
+    .history-dot { width: 9px; height: 9px; border-radius: 50%; }
     .history-dot.h { background: var(--accent); box-shadow: 0 0 6px rgba(0,255,156,0.7); }
     .history-dot.t { background: var(--blue);   box-shadow: 0 0 6px rgba(61,90,254,0.7); }
+
+    /* Flip log */
+    .flip-log {
+      width: 100%;
+      background: var(--void);
+      border: 1px solid rgba(0,255,156,0.14);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .flip-log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 1rem;
+      background: var(--surface);
+      border-bottom: 1px solid rgba(0,255,156,0.10);
+    }
+
+    .flip-log-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.5rem;
+      letter-spacing: 0.2em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .flip-log-count {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.48rem;
+      letter-spacing: 0.1em;
+      color: var(--dim, #4a4870);
+    }
+
+    .flip-log-body {
+      max-height: 200px;
+      overflow-y: auto;
+      padding: 0.5rem 0;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .flip-log-body::-webkit-scrollbar { width: 3px; }
+    .flip-log-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .flip-log-empty {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.5rem;
+      letter-spacing: 0.15em;
+      color: var(--dim, #4a4870);
+      text-align: center;
+      padding: 1.2rem;
+    }
+
+    .log-entry {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.55rem 1rem;
+      border-bottom: 1px solid rgba(55,41,99,0.25);
+      transition: background 0.15s;
+    }
+
+    .log-entry:last-child { border-bottom: none; }
+    .log-entry:hover { background: rgba(30,29,69,0.4); }
+
+    .log-badge {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.48rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      padding: 0.25rem 0.55rem;
+      border-radius: 3px;
+      text-transform: uppercase;
+      width: 44px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .log-badge.h { color: var(--accent); background: rgba(0,255,156,0.08); border: 1px solid rgba(0,255,156,0.25); }
+    .log-badge.t { color: var(--blue);   background: rgba(61,90,254,0.08); border: 1px solid rgba(61,90,254,0.25); }
+
+    .log-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 0.18rem;
+      min-width: 0;
+    }
+
+    .log-passphrase {
+      font-family: 'Courier New', monospace;
+      font-size: 0.6rem;
+      color: var(--accent);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: 0.04em;
+    }
+
+    .log-badge.t ~ .log-meta .log-passphrase { color: var(--blue); }
+
+    .log-timestamp {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.44rem;
+      letter-spacing: 0.08em;
+      color: var(--dim, #4a4870);
+    }
+
+    .log-index {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.44rem;
+      color: var(--dim, #4a4870);
+      flex-shrink: 0;
+    }
 
     /* Footer */
     footer {
@@ -564,6 +674,17 @@
 
     <div class="history-row" id="history" aria-label="Flip history"></div>
 
+    <!-- Flip log -->
+    <div class="flip-log" role="log" aria-label="Flip history log" aria-live="polite">
+      <div class="flip-log-header">
+        <span class="flip-log-title">Proof Log · SHA-256</span>
+        <span class="flip-log-count" id="logCount">0 flips</span>
+      </div>
+      <div class="flip-log-body" id="flipLog">
+        <div class="flip-log-empty" id="logEmpty">No flips yet — awaiting input</div>
+      </div>
+    </div>
+
     <footer>
       <a href="https://persephora.net" target="_blank" rel="noopener">persephora.net</a>
       &nbsp;·&nbsp; Verde, Verde, Verde..
@@ -571,7 +692,7 @@
   </div>
 
   <script>
-    let heads = 0, tails = 0, flipping = false;
+    let heads = 0, tails = 0, flipping = false, flipCount = 0;
     const coin      = document.getElementById('coin');
     const btn       = document.getElementById('flipBtn');
     const result    = document.getElementById('resultValue');
@@ -580,6 +701,22 @@
     const headsEl   = document.getElementById('headsCount');
     const tailsEl   = document.getElementById('tailsCount');
     const totalEl   = document.getElementById('totalCount');
+    const flipLog   = document.getElementById('flipLog');
+    const logEmpty  = document.getElementById('logEmpty');
+    const logCount  = document.getElementById('logCount');
+
+    async function sha256(message) {
+      const msgBuffer = new TextEncoder().encode(message);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function formatTimestamp(d) {
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} `
+           + `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,'0')}`;
+    }
 
     function flip() {
       if (flipping) return;
@@ -587,6 +724,9 @@
       btn.disabled = true;
 
       const isHeads = Math.random() < 0.5;
+      const seed = crypto.getRandomValues(new Uint8Array(16));
+      const seedHex = Array.from(seed).map(b => b.toString(16).padStart(2,'0')).join('');
+      const ts = new Date();
       const extraSpins = (Math.floor(Math.random() * 3) + 3) * 360;
       const finalAngle = isHeads ? extraSpins : extraSpins + 180;
 
@@ -596,9 +736,14 @@
       void coin.offsetWidth;
       coin.classList.add('flipping');
 
-      setTimeout(() => {
+      setTimeout(async () => {
         coin.classList.remove('flipping');
         coin.style.transform = `rotateY(${finalAngle}deg)`;
+
+        const outcome = isHeads ? 'HEADS' : 'TAILS';
+        const passInput = `${outcome}:${ts.toISOString()}:${seedHex}`;
+        const hash = await sha256(passInput);
+        const passphrase = hash.slice(0, 32);
 
         if (isHeads) {
           heads++;
@@ -615,11 +760,27 @@
         headsEl.textContent = heads;
         tailsEl.textContent = tails;
         totalEl.textContent = heads + tails;
+        flipCount++;
+        logCount.textContent = `${flipCount} flip${flipCount !== 1 ? 's' : ''}`;
 
+        // history dot
         const dot = document.createElement('div');
         dot.className = 'history-dot ' + (isHeads ? 'h' : 't');
-        dot.title = isHeads ? 'Heads' : 'Tails';
+        dot.title = outcome;
         history.appendChild(dot);
+
+        // log entry
+        if (logEmpty) logEmpty.remove();
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+        entry.innerHTML = `
+          <span class="log-badge ${isHeads ? 'h' : 't'}">${outcome}</span>
+          <div class="log-meta">
+            <span class="log-passphrase">${passphrase}</span>
+            <span class="log-timestamp">${formatTimestamp(ts)}</span>
+          </div>
+          <span class="log-index">#${flipCount}</span>`;
+        flipLog.prepend(entry);
 
         flipping = false;
         btn.disabled = false;
@@ -627,15 +788,17 @@
     }
 
     function reset() {
-      heads = 0; tails = 0;
+      heads = 0; tails = 0; flipCount = 0;
       headsEl.textContent = '0';
       tailsEl.textContent = '0';
       totalEl.textContent = '0';
+      logCount.textContent = '0 flips';
       result.textContent = '—';
       result.className = 'result-value idle';
       panel.className = 'result-panel';
       coin.style.transform = '';
       history.innerHTML = '';
+      flipLog.innerHTML = '<div class="flip-log-empty" id="logEmpty">No flips yet — awaiting input</div>';
     }
   </script>
 </body>
